@@ -1,0 +1,48 @@
+stages:
+  - lint
+  - validate
+
+# 1. Проверка синтаксиса YAML во всех файлах компонентов
+lint:yaml:
+  stage: lint
+  image: python:3.11-alpine  # Легкий образ с Python
+  before_script:
+    - pip install --no-cache-dir yamllint
+  script:
+    # Проверяем все .yml файлы в папках компонентов, игнорируя длинные строки для удобства
+    - yamllint -d "{extends: relaxed, rules: {line-length: {max: 180}}}" ./**/*.yml
+  only:
+    - merge_requests
+    - main
+
+# 2. Проверка структуры: у каждого компонента ДОЛЖНЫ быть template.yml и README.md
+validate:structure:
+  stage: validate
+  image: alpine:latest
+  script:
+    - |
+      echo " Проверка структуры компонентов..."
+      COMPONENTS="go-build ansible-check docker-build werf-deploy vault-secrets"
+      
+      for dir in $COMPONENTS; do
+        if [ ! -d "$dir" ]; then
+          echo "⚠️ Папка $dir еще не создана "
+          continue
+        fi
+        
+        if [ ! -f "$dir/template.yml" ]; then
+          echo " ОШИБКА: В папке $dir отсутствует файл template.yml"
+          exit 1
+        fi
+        
+        if [ ! -f "$dir/README.md" ]; then
+          echo " ОШИБКА: В папке $dir отсутствует файл README.md"
+          exit 1
+        fi
+        
+        echo " Компонент $dir: структура в порядке"
+      done
+      echo " Все проверки пройдены!"
+  only:
+    - merge_requests
+    - main
